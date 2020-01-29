@@ -103,7 +103,7 @@
             "from": {
               "kind": "ImageStreamTag",
               "namespace": "openshift",
-              "name": "jboss-eap70-openshift:1.4"
+              "name": "jboss-eap70-openshift:1.5"
             },
             "incremental" : true,
             "env": [

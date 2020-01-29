@@ -164,13 +164,13 @@ objects:
   spec:
     dockerImageRepository: registry.access.redhat.com/jboss-fuse-6/fis-java-openshift
     tags:
-    - name: "2.0"
+    - name: "2.0-65"
       annotations:
         description: JBoss Fuse Integration Services 2.0 Java S2I images.
         iconClass: icon-jboss
         supports: jboss-fuse:6.3.0,java:8,xpaas:1.2
         tags: builder,jboss-fuse,java,xpaas
-        version: "2.0"
+        version: "2.0-65"
 - apiVersion: v1
   kind: ImageStream
   metadata:
@@ -207,7 +207,7 @@ objects:
         forcePull: true
         from:
           kind: ImageStreamTag
-          name: fis-java-openshift:2.0
+          name: fis-java-openshift:2.0-65
       type: Source
     triggers:
     - type: ConfigChange
@@ -324,7 +324,7 @@ objects:
           value: ${MAVEN_MIRROR_URL}
         from:
           kind: ImageStreamTag
-          name: jboss-eap70-openshift:1.4
+          name: jboss-eap70-openshift:1.5
           namespace: openshift
       type: Source
     triggers:

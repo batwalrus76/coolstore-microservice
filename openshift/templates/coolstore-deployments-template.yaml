@@ -674,7 +674,7 @@ objects:
     - ReadWriteOnce
     resources:
       requests:
-        storage: 512Mi
+        storage: 1Gi
 # Cart Service
 - apiVersion: v1
   kind: DeploymentConfig

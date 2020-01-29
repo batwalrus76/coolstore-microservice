@@ -37,7 +37,7 @@ objects:
         forcePull: true
         from:
           kind: ImageStreamTag
-          name: fis-java-openshift:2.0
+          name: fis-java-openshift:2.0-65
       type: Source
     triggers:
     - type: ConfigChange

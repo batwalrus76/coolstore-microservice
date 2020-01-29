@@ -12,27 +12,50 @@ function usage() {
     echo " $0 --deploy --maven-mirror-url http://nexus.repo.com/content/groups/public/ --project-suffix s40d"
     echo
     echo "Commands:"
-    echo "   --deploy            Set up the demo projects and deploy demo apps"
-    echo "   --delete            Clean up and remove demo projects and objects"
-    echo "   --verify            Verify the demo is deployed correctly"
-    echo "   --idle              Make all demo servies idle"
+    echo "   --deploy               Set up the demo projects and deploy demo apps"
+    echo "   --delete               Clean up and remove demo projects and objects"
+    echo "   --create-projects      Create projects, by default false"
+    echo "   --build-images         Build all required images, by default false"
+    echo "   --guides               Build and deploy Guides images"
+    echo "   --delete               Clean up and remove demo projects and objects"
+    echo "   --verify               Verify the demo is deployed correctly"
+    echo "   --idle                 Make all demo servies idle"
     echo 
     echo "Options:"
-    echo "   --user              The admin user for the demo projects. mandatory if logged in as system:admin"
-    echo "   --maven-mirror-url  Use the given Maven repository for builds. If not specifid, a Nexus container is deployed in the demo"
-    echo "   --project-suffix    Suffix to be added to demo project names e.g. ci-SUFFIX. If empty, user will be used as suffix"
-    echo "   --minimal           Scale all pods except the absolute essential ones to zero to lower memory and cpu footprint"
-    echo "   --ephemeral         Deploy demo without persistent storage"
-    echo "   --run-verify        Run verify after provisioning"
+    echo "   --user                 The admin user for the demo projects. mandatory if logged in as system:admin"
+    echo "   --maven-mirror-url     Use the given Maven repository for builds. If not specifid, a Nexus container is deployed in the demo"
+    echo "   --git-server-prefix    Prefix for the base git server used to retrieve code/files"
+    echo "   --project-suffix       Suffix to be added to demo project names e.g. ci-SUFFIX. If empty, user will be used as suffix"
+    echo "   --minimal              Scale all pods except the absolute essential ones to zero to lower memory and cpu footprint"
+    echo "   --ephemeral            Deploy demo without persistent storage"
+    echo "   --run-verify           Run verify after provisioning"
+    echo "   --git-user             User for external Git server"
+    echo "   --gogs-route           The base route GOGS Git Server, if one already exists"
+    echo "   --gogs-user            User that will be created in the GOGS Git Server"
+    echo "   --gogs-user-password   Password for user that will be created in the GOGS Git Server"
+    echo "   --jenkins-user         User that will be created in the Jenkins CI/CD Server"
+    echo "   --nexus-user           User that will be created in the Nexus Artifact Repository Server"
+    echo "   --template-dr          Local directory that holds all of the required templates"
 }
 
+ARG_CREATE_PROJECTS=false
+ARG_BUILD_IMAGES=false
 ARG_USERNAME=
 ARG_PROJECT_SUFFIX=
 ARG_MAVEN_MIRROR_URL=
 ARG_MINIMAL=false
 ARG_EPHEMERAL=false
+ARG_GUIDES=false
 ARG_COMMAND=deploy
 ARG_RUN_VERIFY=false
+ARG_GIT_SERVER_PREFIX=
+ARG_GIT_USER=
+ARG_GOGS_ROUTE=
+ARG_GOGS_USER=
+ARG_GOGS_USER_PASSWORD=
+ARG_JENKINS_USER=
+ARG_NEXUS_USER=
+ARG_LOCAL_TEMPLATE_DIR=
 
 while :; do
     case $1 in
@@ -48,6 +71,15 @@ while :; do
         --idle)
             ARG_COMMAND=idle
             ;;
+        --create-projects)
+            ARG_CREATE_PROJECTS=true
+            ;;
+        --build-images)
+            ARG_BUILD_IMAGES=true
+            ;;
+        --guides)
+            ARG_GUIDES=true
+            ;;
         --user)
             if [ -n "$2" ]; then
                 ARG_USERNAME=$2
@@ -57,12 +89,84 @@ while :; do
                 exit 1
             fi
             ;;
+        --template-dir)
+            if [ -n "$2" ]; then
+                ARG_LOCAL_TEMPLATE_DIR=$2
+                shift
+            else
+                printf 'ERROR: "--template-dir" requires a non-empty value.\n' >&2
+                exit 1
+            fi
+            ;;
+        --git-user)
+            if [ -n "$2" ]; then
+                ARG_GIT_USER=$2
+                shift
+            else
+                printf 'ERROR: "--git-user" requires a non-empty value.\n' >&2
+                exit 1
+            fi
+            ;;
+        --gogs-route)
+            if [ -n "$2" ]; then
+                ARG_GOGS_ROUTE=$2
+                shift
+            else
+                printf 'ERROR: "--gogs-route" requires a non-empty value.\n' >&2
+                exit 1
+            fi
+            ;;
+        --gogs-user)
+            if [ -n "$2" ]; then
+                ARG_GOGS_USER=$2
+                shift
+            else
+                printf 'ERROR: "--gogs-user" requires a non-empty value.\n' >&2
+                exit 1
+            fi
+            ;;
+        --gogs-user-password)
+            if [ -n "$2" ]; then
+                ARG_GOGS_USER_PASSWORD=$2
+                shift
+            else
+                printf 'ERROR: "--gogs-user-password" requires a non-empty value.\n' >&2
+                exit 1
+            fi
+            ;;
+        --jenkins-user)
+            if [ -n "$2" ]; then
+                ARG_JENKINS_USER=$2
+                shift
+            else
+                printf 'ERROR: "--jenkins-user" requires a non-empty value.\n' >&2
+                exit 1
+            fi
+            ;;
+        --nexus-user)
+            if [ -n "$2" ]; then
+                ARG_NEXUS_USER=$2
+                shift
+            else
+                printf 'ERROR: "--nexus-user" requires a non-empty value.\n' >&2
+                exit 1
+            fi
+            ;;
         --maven-mirror-url)
             if [ -n "$2" ]; then
                 ARG_MAVEN_MIRROR_URL=$2
                 shift
             else
                 printf 'ERROR: "--maven-mirror-url" requires a non-empty value.\n' >&2
+                exit 1
+            fi
+            ;;
+        --git-server-prefix)
+            if [ -n "$2" ]; then
+                ARG_GIT_SERVER_PREFIX=$2
+                shift
+            else
+                printf 'ERROR: "--git-server-prefix" requires a non-empty value.\n' >&2
                 exit 1
             fi
             ;;
@@ -118,15 +222,17 @@ PRJ_INVENTORY=inventory-dev-$PRJ_SUFFIX
 PRJ_DEVELOPER=developer-$PRJ_SUFFIX
 
 # config
-GITHUB_ACCOUNT=${GITHUB_ACCOUNT:-jbossdemocentral}
-GITHUB_REF=${GITHUB_REF:-master}
-GITHUB_URI=https://github.com/$GITHUB_ACCOUNT/coolstore-microservice.git
+GIT_ACCOUNT=${ARG_GIT_USER:-alezzandro}
+GIT_REF=${GIT_REF:-master}
+GIT_URI=${ARG_GIT_SERVER_PREFIX:-https://github.com/$GIT_ACCOUNT/coolstore-microservice}.git
+LOCAL_TEMPLATE_DIR=${ARG_LOCAL_TEMPLATE_DIR}
 
 # maven 
-MAVEN_MIRROR_URL=${ARG_MAVEN_MIRROR_URL:-http://nexus.$PRJ_CI.svc.cluster.local:8081/content/groups/public}
+MAVEN_MIRROR_URL=${ARG_MAVEN_MIRROR_URL:-http://nexus3.analytics-portability-dev.b9ad.pro-us-east-1.openshiftapps.com/repository/maven-public/}
 
-GOGS_USER=developer
-GOGS_PASSWORD=developer
+GOGS_ROUTE=${ARG_GOGS_ROUTE}
+GOGS_USER=${ARG_GOGS_USER:-developer}
+GOGS_PASSWORD=${ARG_GOGS_USER_PASSWORD:-developer}
 GOGS_ADMIN_USER=team
 GOGS_ADMIN_PASSWORD=team
 
@@ -142,12 +248,15 @@ function print_info() {
   OPENSHIFT_MASTER=$(oc status | head -1 | sed 's#.*\(https://[^ ]*\)#\1#g') # must run after projects are created
 
   echo "OpenShift master:    $OPENSHIFT_MASTER"
-  echo "Current user:        $LOGGEDIN_USER"
+  echo "Current user:        $OPENSHIFT_USER"
   echo "Minimal setup:       $ARG_MINIMAL"
   echo "Ephemeral:           $ARG_EPHEMERAL"
+  echo "Create Projects:     $ARG_CREATE_PROJECTS"
+  echo "Guides:              $ARG_GUIDES"
+  echo "Build Images:        $ARG_BUILD_IMAGES"
   echo "Project suffix:      $PRJ_SUFFIX"
-  echo "GitHub repo:         https://github.com/$GITHUB_ACCOUNT/coolstore-microservice"
-  echo "GitHub branch/tag:   $GITHUB_REF"
+  echo "Git repo:            $GIT_URI"
+  echo "Git branch/tag:      $GIT_REF"
   echo "Gogs url:            http://$GOGS_ROUTE"
   echo "Gogs admin user:     $GOGS_ADMIN_USER"
   echo "Gogs admin pwd:      $GOGS_ADMIN_PASSWORD"
@@ -155,6 +264,11 @@ function print_info() {
   echo "Gogs pwd:            $GOGS_PASSWORD"
   echo "Gogs webhook secret: $WEBHOOK_SECRET"
   echo "Maven mirror url:    $MAVEN_MIRROR_URL"
+  echo "Git Project prefix:  $ARG_GIT_SERVER_PREFIX"
+  echo "Git user:            $ARG_GIT_USER"
+  echo "Jenkins User:        $ARG_JENKINS_USER"
+  echo "Nexus User:          $ARG_NEXUS_USER"
+  echo "Local Template Dir:  $LOCAL_TEMPLATE_DIR"
 }
 
 # waits while the condition is true until it becomes false or it times out
@@ -212,6 +326,7 @@ function create_projects() {
   do
     oc adm policy add-role-to-group admin system:serviceaccounts:$PRJ_CI -n $project
     oc adm policy add-role-to-group admin system:serviceaccounts:$project -n $project
+    oc adm policy add-role-to-user admin $OPENSHIFT_USER -n $project
   done
 
   if [ $LOGGEDIN_USER == 'system:admin' ] ; then
@@ -227,14 +342,16 @@ function create_projects() {
   # advanced e.g. <user>-<project>.4s23.cluster
   oc create route edge testroute --service=testsvc --port=80 -n $PRJ_CI >/dev/null
   DOMAIN=$(oc get route testroute -o template --template='{{.spec.host}}' -n $PRJ_CI | sed "s/testroute-$PRJ_CI.//g")
-  GOGS_ROUTE="gogs-$PRJ_CI.$DOMAIN"
+  if [[ -z "$GOGS_ROUTE" ]] ; then
+    GOGS_ROUTE="gogs-$PRJ_CI.$DOMAIN"
+  fi
   oc delete route testroute -n $PRJ_CI >/dev/null
 }
 
 # Add Inventory Service Template
 function add_inventory_template_to_projects() {
   echo_header "Adding inventory template to $PRJ_DEVELOPER project"
-  local _TEMPLATE=https://raw.githubusercontent.com/$GITHUB_ACCOUNT/coolstore-microservice/$GITHUB_REF/openshift/templates/inventory-template.json
+  local _TEMPLATE=c/inventory-template.json
   curl -sL $_TEMPLATE | tr -d '\n' | tr -s '[:space:]' \
     | sed "s|\"MAVEN_MIRROR_URL\", \"value\": \"\"|\"MAVEN_MIRROR_URL\", \"value\": \"$MAVEN_MIRROR_URL\"|g" \
     | sed "s|\"https://github.com/jbossdemocentral/coolstore-microservice\"|\"http://$GOGS_ROUTE/$GOGS_USER/coolstore-microservice.git\"|g" \
@@ -285,7 +402,7 @@ function deploy_gogs() {
   local _GITHUB_REPO="https://github.com/$GITHUB_ACCOUNT/coolstore-microservice.git"
 
   echo "Using template $_TEMPLATE"
-  oc process -f $_TEMPLATE -v HOSTNAME=$GOGS_ROUTE -v GOGS_VERSION=0.9.113 -v DATABASE_USER=$_DB_USER -v DATABASE_PASSWORD=$_DB_PASSWORD -v DATABASE_NAME=$_DB_NAME -v SKIP_TLS_VERIFY=true -n $PRJ_CI | oc create -f - -n $PRJ_CI
+  oc process -f $_TEMPLATE HOSTNAME=$GOGS_ROUTE GOGS_VERSION=0.9.113 DATABASE_USER=$_DB_USER DATABASE_PASSWORD=$_DB_PASSWORD DATABASE_NAME=$_DB_NAME SKIP_TLS_VERIFY=true -n $PRJ_CI | oc create -f - -n $PRJ_CI
 
   sleep 5
 
@@ -383,11 +500,11 @@ function scale_down_deployments() {
 
 # Deploy Coolstore into Coolstore TEST project
 function deploy_coolstore_test_env() {
-  local _TEMPLATE="https://raw.githubusercontent.com/$GITHUB_ACCOUNT/coolstore-microservice/$GITHUB_REF/openshift/templates/coolstore-deployments-template.yaml"
+  local _TEMPLATE="$LOCAL_TEMPLATE_DIR/coolstore-deployments-template.yaml"
 
   echo_header "Deploying CoolStore app into $PRJ_COOLSTORE_TEST project..."
   echo "Using deployment template $_TEMPLATE_DEPLOYMENT"
-  oc process -f $_TEMPLATE -v APP_VERSION=test -v HOSTNAME_SUFFIX=$PRJ_COOLSTORE_TEST.$DOMAIN -n $PRJ_COOLSTORE_TEST | oc create -f - -n $PRJ_COOLSTORE_TEST
+  oc process -f $_TEMPLATE APP_VERSION=test HOSTNAME_SUFFIX=$PRJ_COOLSTORE_TEST.$DOMAIN -n $PRJ_COOLSTORE_TEST | oc create -f - -n $PRJ_COOLSTORE_TEST
   sleep 2
   remove_coolstore_storage_if_ephemeral $PRJ_COOLSTORE_TEST
 
@@ -399,20 +516,20 @@ function deploy_coolstore_test_env() {
 
 # Deploy Coolstore into Coolstore PROD project
 function deploy_coolstore_prod_env() {
-  local _TEMPLATE_DEPLOYMENT="https://raw.githubusercontent.com/$GITHUB_ACCOUNT/coolstore-microservice/$GITHUB_REF/openshift/templates/coolstore-deployments-template.yaml"
-  local _TEMPLATE_BLUEGREEN="https://raw.githubusercontent.com/$GITHUB_ACCOUNT/coolstore-microservice/$GITHUB_REF/openshift/templates/inventory-bluegreen-template.yaml"
-  local _TEMPLATE_NETFLIX="https://raw.githubusercontent.com/$GITHUB_ACCOUNT/coolstore-microservice/$GITHUB_REF/openshift/templates/netflix-oss-list.yaml"
+  local _TEMPLATE_DEPLOYMENT="$LOCAL_TEMPLATE_DIR/coolstore-deployments-template.yaml"
+  local _TEMPLATE_BLUEGREEN="$LOCAL_TEMPLATE_DIR/inventory-bluegreen-template.yaml"
+  local _TEMPLATE_NETFLIX="$LOCAL_TEMPLATE_DIR/netflix-oss-list.yaml"
 
   echo_header "Deploying CoolStore app into $PRJ_COOLSTORE_PROD project..."
   echo "Using deployment template $_TEMPLATE_DEPLOYMENT"
   echo "Using bluegreen template $_TEMPLATE_BLUEGREEN"
   echo "Using Netflix OSS template $_TEMPLATE_NETFLIX"
 
-  oc process -f $_TEMPLATE_DEPLOYMENT -v APP_VERSION=prod -v HOSTNAME_SUFFIX=$PRJ_COOLSTORE_PROD.$DOMAIN -n $PRJ_COOLSTORE_PROD | oc create -f - -n $PRJ_COOLSTORE_PROD
+  oc process -f $_TEMPLATE_DEPLOYMENT APP_VERSION=prod HOSTNAME_SUFFIX=$PRJ_COOLSTORE_PROD.$DOMAIN -n $PRJ_COOLSTORE_PROD | oc create -f - -n $PRJ_COOLSTORE_PROD
   sleep 2
   oc delete all,pvc -l application=inventory --now --ignore-not-found -n $PRJ_COOLSTORE_PROD
   sleep 2
-  oc process -f $_TEMPLATE_BLUEGREEN -v APP_VERSION_BLUE=prod-blue -v APP_VERSION_GREEN=prod-green -v HOSTNAME_SUFFIX=$PRJ_COOLSTORE_PROD.$DOMAIN -n $PRJ_COOLSTORE_PROD | oc create -f - -n $PRJ_COOLSTORE_PROD
+  oc process -f $_TEMPLATE_BLUEGREEN APP_VERSION_BLUE=prod-blue APP_VERSION_GREEN=prod-green HOSTNAME_SUFFIX=$PRJ_COOLSTORE_PROD.$DOMAIN -n $PRJ_COOLSTORE_PROD | oc create -f - -n $PRJ_COOLSTORE_PROD
   sleep 2
   oc create -f $_TEMPLATE_NETFLIX -n $PRJ_COOLSTORE_PROD
   sleep 2
@@ -426,11 +543,11 @@ function deploy_coolstore_prod_env() {
 
 # Deploy Inventory service into Inventory DEV project
 function deploy_inventory_dev_env() {
-  local _TEMPLATE="https://raw.githubusercontent.com/$GITHUB_ACCOUNT/coolstore-microservice/$GITHUB_REF/openshift/templates/inventory-template.json"
+  local _TEMPLATE="$LOCAL_TEMPLATE_DIR/inventory-template.json"
 
   echo_header "Deploying Inventory service into $PRJ_INVENTORY project..."
   echo "Using template $_TEMPLATE"
-  oc process -f $_TEMPLATE -v GIT_URI=http://$GOGS_ROUTE/$GOGS_ADMIN_USER/coolstore-microservice.git -v MAVEN_MIRROR_URL=$MAVEN_MIRROR_URL -n $PRJ_INVENTORY | oc create -f - -n $PRJ_INVENTORY
+  oc process -f $_TEMPLATE GIT_URI=$GIT_URI GIT_REF=$GIT_REF MAVEN_MIRROR_URL=$MAVEN_MIRROR_URL -n $PRJ_INVENTORY | oc create -f - -n $PRJ_INVENTORY
   sleep 2
   # scale down to zero if minimal
   if [ "$ARG_MINIMAL" = true ] ; then
@@ -438,10 +555,26 @@ function deploy_inventory_dev_env() {
   fi  
 }
 
-function build_images() {
-  local _TEMPLATE_BUILDS="https://raw.githubusercontent.com/$GITHUB_ACCOUNT/coolstore-microservice/$GITHUB_REF/openshift/templates/coolstore-builds-template.yaml"
+function build_gw_image() {
+  local _TEMPLATE_BUILDS="$LOCAL_TEMPLATE_DIR/coolstore-gw-builds-template.yaml"
   echo "Using build template $_TEMPLATE_BUILDS"
-  oc process -f $_TEMPLATE_BUILDS -v GIT_URI=$GITHUB_URI -v GIT_REF=$GITHUB_REF -v MAVEN_MIRROR_URL=$MAVEN_MIRROR_URL -n $PRJ_COOLSTORE_TEST | oc create -f - -n $PRJ_COOLSTORE_TEST
+  oc process -f $_TEMPLATE_BUILDS GIT_URI=$GIT_URI GIT_REF=$GIT_REF MAVEN_MIRROR_URL=$MAVEN_MIRROR_URL -n $PRJ_COOLSTORE_TEST | oc create -f - -n $PRJ_COOLSTORE_TEST
+
+  sleep 10
+
+  # build images
+  for buildconfig in coolstore-gw
+  do
+    oc start-build $buildconfig -n $PRJ_COOLSTORE_TEST
+    wait_while_empty "$buildconfig build" 180 "oc get builds -n $PRJ_COOLSTORE_TEST | grep $buildconfig | grep Running"
+    sleep 10
+  done
+}
+
+function build_images() {
+  local _TEMPLATE_BUILDS="$LOCAL_TEMPLATE_DIR/coolstore-builds-template.yaml"
+  echo "Using build template $_TEMPLATE_BUILDS"
+  oc process -f $_TEMPLATE_BUILDS GIT_URI=$GIT_URI GIT_REF=$GIT_REF MAVEN_MIRROR_URL=$MAVEN_MIRROR_URL -n $PRJ_COOLSTORE_TEST | oc create -f - -n $PRJ_COOLSTORE_TEST
 
   sleep 10
 
@@ -495,9 +628,9 @@ function deploy_pipeline() {
   echo_header "Configuring CI/CD..."
 
   local _PIPELINE_NAME=inventory-pipeline
-  local _TEMPLATE=https://raw.githubusercontent.com/$GITHUB_ACCOUNT/coolstore-microservice/$GITHUB_REF/openshift/templates/inventory-pipeline-template.yaml
+  local _TEMPLATE="$LOCAL_TEMPLATE_DIR/inventory-pipeline-template.yaml"
 
-  oc process -f $_TEMPLATE -v PIPELINE_NAME=$_PIPELINE_NAME -v DEV_PROJECT=$PRJ_INVENTORY -v TEST_PROJECT=$PRJ_COOLSTORE_TEST -v PROD_PROJECT=$PRJ_COOLSTORE_PROD -v GENERIC_WEBHOOK_SECRET=$WEBHOOK_SECRET -n $PRJ_CI | oc create -f - -n $PRJ_CI
+  oc process -f $_TEMPLATE GIT_URI=$GIT_URI PIPELINE_NAME=$_PIPELINE_NAME DEV_PROJECT=$PRJ_INVENTORY TEST_PROJECT=$PRJ_COOLSTORE_TEST PROD_PROJECT=$PRJ_COOLSTORE_PROD GENERIC_WEBHOOK_SECRET=$WEBHOOK_SECRET -n $PRJ_CI | oc create -f - -n $PRJ_CI
 
   # configure webhook to trigger pipeline
   read -r -d '' _DATA_JSON << EOM
@@ -560,7 +693,7 @@ function deploy_guides() {
   echo_header "Deploying Demo Guides"
   local _DEMO_CONTENT_URL="https://raw.githubusercontent.com/osevg/workshopper-content/stable"
   local _DEMOS="$_DEMO_CONTENT_URL/demos/_demo-all.yml,$_DEMO_CONTENT_URL/demos/_demo-msa.yml,$_DEMO_CONTENT_URL/demos/_demo-agile-integration.yml,$_DEMO_CONTENT_URL/demos/_demo-cicd-eap.yml"
-  oc new-app --name=guides jboss-eap70-openshift~https://github.com/osevg/workshopper.git#stable -n $PRJ_CI -e WORKSHOPS_URLS=$_DEMOS -e CONTENT_URL_PREFIX=$_DEMO_CONTENT_URL -e PROJECT_SUFFIX=$PRJ_SUFFIX -e GOGS_URL=http://$GOGS_ROUTE -e GOGS_DEV_REPO_URL_PREFIX=http://$GOGS_ROUTE/$GOGS_USER/coolstore-microservice -e JENKINS_URL=http://jenkins-$PRJ_CI.$DOMAIN -e COOLSTORE_WEB_PROD_URL=http://web-ui-$PRJ_COOLSTORE_PROD.$DOMAIN -e HYSTRIX_PROD_URL=http://hystrix-dashboard-$PRJ_COOLSTORE_PROD.$DOMAIN -e GOGS_DEV_USER=$GOGS_USER -e GOGS_DEV_PASSWORD=$GOGS_PASSWORD -e GOGS_REVIEWER_USER=$GOGS_ADMIN_USER -e GOGS_REVIEWER_PASSWORD=$GOGS_ADMIN_PASSWORD -e OCP_VERSION=3.4 -n $PRJ_CI
+  oc new-app --name=guides jboss-eap70-openshift:1.5~https://github.com/osevg/workshopper.git#stable -n $PRJ_CI -e WORKSHOPS_URLS=$_DEMOS -e CONTENT_URL_PREFIX=$_DEMO_CONTENT_URL -e PROJECT_SUFFIX=$PRJ_SUFFIX -e GOGS_URL=http://$GOGS_ROUTE -e GOGS_DEV_REPO_URL_PREFIX=http://$GOGS_ROUTE/$GOGS_USER/coolstore-microservice -e JENKINS_URL=http://jenkins-$PRJ_CI.$DOMAIN -e COOLSTORE_WEB_PROD_URL=http://web-ui-$PRJ_COOLSTORE_PROD.$DOMAIN -e HYSTRIX_PROD_URL=http://hystrix-dashboard-$PRJ_COOLSTORE_PROD.$DOMAIN -e GOGS_DEV_USER=$GOGS_USER -e GOGS_DEV_PASSWORD=$GOGS_PASSWORD -e GOGS_REVIEWER_USER=$GOGS_ADMIN_USER -e GOGS_REVIEWER_PASSWORD=$GOGS_ADMIN_PASSWORD -e OCP_VERSION=3.4 -n $PRJ_CI
   oc expose svc/guides -n $PRJ_CI
   oc cancel-build bc/guides -n $PRJ_CI
   oc set env bc/guides MAVEN_MIRROR_URL=$MAVEN_MIRROR_URL -n $PRJ_CI
@@ -619,6 +752,8 @@ START=`date +%s`
 
 echo_header "Multi-product MSA Demo ($(date))"
 
+print_info
+
 case "$ARG_COMMAND" in
     delete)
         echo "Delete MSA demo..."
@@ -628,38 +763,42 @@ case "$ARG_COMMAND" in
       
     verify)
         echo "Verifying MSA demo..."
-        print_info
         verify_build_and_deployments
         ;;
 
     idle)
         echo "Idling MSA demo..."
-        print_info
         make_idle
         ;;
 
     *)
         echo "Deploying MSA demo..."
-        create_projects 
-        print_info
-        deploy_nexus
-        wait_for_nexus_to_be_ready
-        build_images
-        deploy_guides
-        deploy_gogs
-        deploy_jenkins
-        add_inventory_template_to_projects
-        deploy_coolstore_test_env
-        deploy_coolstore_prod_env
-        deploy_inventory_dev_env
-        promote_images
-        deploy_pipeline
-
-        if [ "$ARG_RUN_VERIFY" = true ] ; then
-          echo "Waiting for deployments to finish..."
-          sleep 30
-          verify_build_and_deployments
+        if [[ "$ARG_CREATE_PROJECTS" = true ]] ; then
+            create_projects
         fi
+        if [[ -z "$ARG_MAVEN_MIRROR_URL" ]] ; then
+            deploy_nexus
+            wait_for_nexus_to_be_ready
+        else
+            echo_header "Using existng Maven mirror: $ARG_MAVEN_MIRROR_URL"
+        fi
+        if [[ "$ARG_BUILD_IMAGES" = true ]] ; then
+            echo_header "Building Images"
+            build_images
+        fi
+        if [[ "$ARG_GUIDES" ]] ; then
+            deploy_guides
+        fi
+#        deploy_gogs
+#        deploy_jenkins
+#        add_inventory_template_to_projects
+#        deploy_coolstore_test_env
+#        deploy_coolstore_prod_env
+#        deploy_inventory_dev_env
+#        build_images
+#        promote_images
+#        deploy_pipeline
+
 esac
 
 set_default_project
