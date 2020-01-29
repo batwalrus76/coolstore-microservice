@@ -12,24 +12,31 @@
 
 	<properties>
 	   <spring-boot.version>1.4.1.RELEASE</spring-boot.version>
-    	<fabric8.version>2.2.170.redhat-000010</fabric8.version>
-    	<fabric8.maven.plugin.version>3.1.80.redhat-000010</fabric8.maven.plugin.version>
+    	<fabric8.version>2.4.24</fabric8.version>
+    	<fabric8.maven.plugin.version>4.3.1</fabric8.maven.plugin.version>
     	<maven-compiler-plugin.version>3.6.0</maven-compiler-plugin.version>
     	<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     	<maven-surefire-plugin.version>2.19.1</maven-surefire-plugin.version>
   	</properties>
 
-    <dependencyManagement>
-	    <dependencies>
-	      <dependency>
-	        <groupId>io.fabric8</groupId>
-	        <artifactId>fabric8-project-bom-camel-spring-boot</artifactId>
-	        <version>${fabric8.version}</version>
-	        <type>pom</type>
-	        <scope>import</scope>
-	      </dependency>
-	    </dependencies>
-	  </dependencyManagement>
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.fabric8</groupId>
+				<artifactId>fabric8-project-bom-camel-spring-boot</artifactId>
+				<version>${fabric8.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>org.keycloak.bom</groupId>
+				<artifactId>keycloak-adapter-bom</artifactId>
+				<version>3.1.0.Final</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 
 	<dependencies>
 		

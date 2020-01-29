@@ -240,10 +240,126 @@ objects:
       requests:
         cpu: "200m"
         memory: "1Gi"
-    triggers:
-    - type: ConfigChange
-    - imageChange: {}
-      type: ImageChange
+  # Pricing Rules Service
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: pricing
+    labels:
+      app: pricing
+  spec:
+    tags:
+      - name: latest
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    name: pricing
+    labels:
+      app: pricing
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: pricing:latest
+    source:
+      contextDir: pricing-service
+      git:
+        ref: ${GIT_REF}
+        uri: ${GIT_URI}
+      type: Git
+    strategy:
+      sourceStrategy:
+        env:
+          - name: KIE_CONTAINER_DEPLOYMENT
+            value: ${KIE_CONTAINER_DEPLOYMENT}
+          - name: MAVEN_MIRROR_URL
+            value: ${MAVEN_MIRROR_URL}
+        from:
+          kind: ImageStreamTag
+          name: jboss-decisionserver64-openshift:1.0
+          namespace: openshift
+      type: Source
+    resources:
+      limits:
+        cpu: 500m
+        memory: "2Gi"
+      requests:
+        cpu: "200m"
+        memory: "1Gi"
+  # Rating service
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: rating
+    labels:
+      app: rating
+  spec:
+    tags:
+      - name: latest
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    name: rating
+    labels:
+      app: rating
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: rating:latest
+    source:
+      contextDir: rating-service
+      git:
+        ref: ${GIT_REF}
+        uri: ${GIT_URI}
+      type: Git
+    strategy:
+      sourceStrategy:
+        env:
+          - name: MAVEN_MIRROR_URL
+            value: ${MAVEN_MIRROR_URL}
+        from:
+          kind: ImageStreamTag
+          name: redhat-openjdk18-openshift:1.1
+          namespace: openshift
+      type: Source
+  # Reviews service
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: review
+    labels:
+      app: review
+  spec:
+    tags:
+      - name: latest
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    name: review
+    labels:
+      app: review
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: review:latest
+    source:
+      contextDir: review-service
+      git:
+        ref: ${GIT_REF}
+        uri: ${GIT_URI}
+      type: Git
+    strategy:
+      sourceStrategy:
+        env:
+          - name: MAVEN_MIRROR_URL
+            value: ${MAVEN_MIRROR_URL}
+        from:
+          kind: ImageStreamTag
+          name: redhat-openjdk18-openshift:1.1
+          namespace: openshift
+      type: Source
 parameters:
 - description: Git source URI for application
   displayName: Git source repository
