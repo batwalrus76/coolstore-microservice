@@ -47,7 +47,7 @@ objects:
           - name: HOSTNAME_HTTP
             value: web-ui:8080
           image: web-ui
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           name: web-ui
           ports:
           - containerPort: 8080
@@ -257,7 +257,7 @@ objects:
           - name: DB_DATABASE
             value: inventorydb
           image: inventory
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           lifecycle:
             preStop:
               exec:
@@ -374,7 +374,7 @@ objects:
           - name: POSTGRESQL_DATABASE
             value: inventorydb
           image: postgresql
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           name: inventory-postgresql
           ports:
           - containerPort: 5432
@@ -479,7 +479,7 @@ objects:
           - name: DB_SERVER
             value: catalog-mongodb
           image: catalog
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           name: catalog
           ports:
           - containerPort: 8778
@@ -699,24 +699,16 @@ objects:
         containers:
         - env:
           - name: CATALOG_ENDPOINT
-            value: "http://catalog-${HOSTNAME_SUFFIX}:8080"
-          - name: PRICING_ENDPOINT
-            value: "http://pricing-${HOSTNAME_SUFFIX}:8080"
-          - name: KIE_CONTAINER_DEPLOYMENT
-            value: ${KIE_CONTAINER_DEPLOYMENT}
-          - name: KIE_SERVER_USER
-            value: ${KIE_SERVER_USER}
-          - name: KIE_SERVER_PASSWORD
-            value: ${KIE_SERVER_PASSWORD}
+            value: "http://catalog:8080"
           image: cart
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           livenessProbe:
             failureThreshold: 5
             httpGet:
               path: /health
               port: 8080
               scheme: HTTP
-            initialDelaySeconds: 30
+            initialDelaySeconds: 15
             periodSeconds: 5
             successThreshold: 1
             timeoutSeconds: 1
@@ -737,7 +729,7 @@ objects:
               path: /health
               port: 8080
               scheme: HTTP
-            initialDelaySeconds: 30
+            initialDelaySeconds: 15
             periodSeconds: 5
             successThreshold: 1
             timeoutSeconds: 1
@@ -748,131 +740,6 @@ objects:
             requests:
               cpu: 100m
               memory: 256Mi
-          terminationMessagePath: /dev/termination-log
-        dnsPolicy: ClusterFirst
-        restartPolicy: Always
-        securityContext: {}
-        terminationGracePeriodSeconds: 75
-    triggers:
-    - imageChangeParams:
-        automatic: true
-        containerNames:
-        - cart
-        from:
-          kind: ImageStreamTag
-          name: cart:${APP_VERSION}
-      type: ImageChange
-    - type: ConfigChange
-- apiVersion: v1
-  kind: Service
-  metadata:
-    labels:
-      app: cart
-      application: cart
-    name: cart
-  spec:
-    ports:
-    - port: 8080
-      protocol: TCP
-      targetPort: 8080
-    selector:
-      deploymentconfig: cart
-- apiVersion: v1
-  kind: Route
-  metadata:
-    labels:
-      application: cart
-    name: cart
-  spec:
-    host: cart-${HOSTNAME_SUFFIX}
-    to:
-      kind: Service
-      name: cart
-      weight: 100
-# Pricing Service
-- apiVersion: v1
-  kind: DeploymentConfig
-  metadata:
-    name: pricing
-  spec:
-    replicas: 1
-    selector:
-      deploymentconfig: pricing
-    strategy:
-      resources: {}
-      type: Recreate
-    template:
-      metadata:
-        labels:
-          application: pricing
-          deploymentconfig: pricing
-        name: pricing
-      spec:
-        containers:
-        - env:
-          - name: MQ_CLUSTER_PASSWORD
-            value: 7mzX0pLV03
-          - name: JGROUPS_CLUSTER_PASSWORD
-            value: CqUo3fYDTv
-          - name: AUTO_DEPLOY_EXPLODED
-            value: "false"
-          - name: KIE_CONTAINER_DEPLOYMENT
-            value: ${KIE_CONTAINER_DEPLOYMENT}
-          - name: KIE_SERVER_USER
-            value: ${KIE_SERVER_USER}
-          - name: KIE_SERVER_PASSWORD
-            value: ${KIE_SERVER_PASSWORD}
-          - name: OPENSHIFT_KUBE_PING_LABELS
-            value: application=pricing-service
-          - name: OPENSHIFT_KUBE_PING_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          image: pricing
-          imagePullPolicy: Always
-          lifecycle:
-            preStop:
-              exec:
-                command:
-                - /opt/eap/bin/jboss-cli.sh
-                - -c
-                - :shutdown(timeout=60)
-          livenessProbe:
-            failureThreshold: 5
-            httpGet:
-              path: /kie-server/docs/
-              port: 8080
-              scheme: HTTP
-            initialDelaySeconds: 120
-            periodSeconds: 5
-            successThreshold: 1
-            timeoutSeconds: 5
-          name: pricing
-          ports:
-          - containerPort: 8778
-            name: jolokia
-            protocol: TCP
-          - containerPort: 8080
-            name: http
-            protocol: TCP
-          - containerPort: 8888
-            name: ping
-            protocol: TCP
-          readinessProbe:
-            failureThreshold: 10
-            httpGet:
-              path: /kie-server/docs/
-              port: 8080
-              scheme: HTTP
-            initialDelaySeconds: 15
-            periodSeconds: 5
-            successThreshold: 1
-            timeoutSeconds: 1
-          resources:
-            limits:
-              memory: 600Mi
-            requests:
-              memory: 200Mi
           terminationMessagePath: /dev/termination-log
         dnsPolicy: ClusterFirst
         restartPolicy: Always

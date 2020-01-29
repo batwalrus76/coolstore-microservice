@@ -58,7 +58,7 @@ objects:
           - name: DB_DATABASE
             value: inventorydb
           image: ' '
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           lifecycle:
             preStop:
               exec:
@@ -184,7 +184,7 @@ objects:
           - name: DB_DATABASE
             value: inventorydb
           image: ' '
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           lifecycle:
             preStop:
               exec:
@@ -307,7 +307,7 @@ objects:
           - name: POSTGRESQL_DATABASE
             value: inventorydb
           image: postgresql
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           name: inventory-postgresql
           ports:
           - containerPort: 5432

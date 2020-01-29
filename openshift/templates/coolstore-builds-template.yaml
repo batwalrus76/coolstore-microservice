@@ -56,20 +56,6 @@ objects:
 - apiVersion: v1
   kind: ImageStream
   metadata:
-    name: fis-java-openshift
-  spec:
-    dockerImageRepository: registry.access.redhat.com/jboss-fuse-6/fis-java-openshift
-    tags:
-    - name: "2.0-65"
-      annotations:
-        description: JBoss Fuse Integration Services 2.0 Java S2I images.
-        iconClass: icon-jboss
-        supports: jboss-fuse:6.3.0,java:8,xpaas:1.2
-        tags: builder,jboss-fuse,java,xpaas
-        version: "2.0-65"
-- apiVersion: v1
-  kind: ImageStream
-  metadata:
     name: coolstore-gw
   spec: {}
   status:
@@ -99,7 +85,8 @@ objects:
         forcePull: false
         from:
           kind: ImageStreamTag
-          name: fis-java-openshift:2.0-65
+          namespace: openshift
+          name: fis-java-openshift:2.0
       type: Source
     resources:
       limits:
@@ -239,54 +226,13 @@ objects:
           value: ${MAVEN_MIRROR_URL}
         from:
           kind: ImageStreamTag
-          name: redhat-openjdk18-openshift:1.8-7
+          namespace: openshift
+          name: redhat-openjdk18-openshift:1.0
       type: Source
     triggers:
     - type: ConfigChange
     - imageChange: {}
       type: ImageChange
-    resources:
-      limits:
-        cpu: 500m
-        memory: "2Gi"
-      requests:
-        cpu: "200m"
-        memory: "1Gi"
-# Pricing Rules Service
-- apiVersion: v1
-  kind: ImageStream
-  metadata:
-    name: pricing
-  spec:
-    tags:
-    - name: latest
-- apiVersion: v1
-  kind: BuildConfig
-  metadata:
-    name: pricing
-  spec:
-    output:
-      to:
-        kind: ImageStreamTag
-        name: pricing:latest
-    source:
-      contextDir: pricing-service
-      git:
-        ref: ${GIT_REF}
-        uri: ${GIT_URI}
-      type: Git
-    strategy:
-      sourceStrategy:
-        env:
-        - name: KIE_CONTAINER_DEPLOYMENT
-          value: ${KIE_CONTAINER_DEPLOYMENT}
-        - name: MAVEN_MIRROR_URL
-          value: ${MAVEN_MIRROR_URL}
-        from:
-          kind: ImageStreamTag
-          name: jboss-decisionserver64-openshift:1.0
-          namespace: openshift
-      type: Source
     resources:
       limits:
         cpu: 500m
@@ -308,7 +254,7 @@ parameters:
   displayName: Git branch/tag reference
   name: GIT_REF
   required: true
-  value: master
+  value: stable-ocp-3.5
 - description: Maven mirror url. If nexus is deployed locally, use nexus url (e.g. http://nexus.ci:8081/content/groups/public/)
   displayName: Maven mirror url
   name: MAVEN_MIRROR_URL

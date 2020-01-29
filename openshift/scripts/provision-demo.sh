@@ -383,7 +383,7 @@ function wait_for_nexus_to_be_ready() {
   fi
 
   if [ -z "$ARG_MAVEN_MIRROR_URL" ] ; then # no maven mirror specified
-    wait_while_empty "Nexus" 600 "oc get ep nexus -o yaml -n $PRJ_CI | grep '\- addresses:'"
+    wait_while_empty "Nexus" 1200 "oc get ep nexus -o yaml -n $PRJ_CI | grep '\- addresses:'"
   fi
 }
 
@@ -407,8 +407,8 @@ function deploy_gogs() {
   sleep 5
 
   # wait for Gogs to be ready
-  wait_while_empty "Gogs PostgreSQL" 600 "oc get ep gogs-postgresql -o yaml -n $PRJ_CI | grep '\- addresses:'"
-  wait_while_empty "Gogs" 600 "oc get ep gogs -o yaml -n $PRJ_CI | grep '\- addresses:'"
+  wait_while_empty "Gogs PostgreSQL" 1200 "oc get ep gogs-postgresql -o yaml -n $PRJ_CI | grep '\- addresses:'"
+  wait_while_empty "Gogs" 1200 "oc get ep gogs -o yaml -n $PRJ_CI | grep '\- addresses:'"
 
   sleep 20
 
