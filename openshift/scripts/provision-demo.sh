@@ -548,7 +548,7 @@ function deploy_coolstore_test_env() {
   local _TEMPLATE="$LOCAL_TEMPLATE_DIR/coolstore-deployments-template.yaml"
 
   echo_header "Deploying CoolStore app into $PRJ_COOLSTORE_TEST project..."
-  echo "Using deployment template $_TEMPLATE_DEPLOYMENT"
+  echo "Using deployment template $_TEMPLATE"
   oc process -f $_TEMPLATE APP_VERSION=test HOSTNAME_SUFFIX=$PRJ_COOLSTORE_TEST.$DOMAIN -n $PRJ_COOLSTORE_TEST | oc create -f - -n $PRJ_COOLSTORE_TEST
   sleep 2
   remove_coolstore_storage_if_ephemeral $PRJ_COOLSTORE_TEST
@@ -616,6 +616,54 @@ function build_gw_image() {
   done
 }
 
+function build_web_ui_image() {
+  local _TEMPLATE_BUILDS="$LOCAL_TEMPLATE_DIR/coolstore-web-ui-builds-template.yaml"
+  echo "Using build template $_TEMPLATE_BUILDS"
+  oc process -f $_TEMPLATE_BUILDS GIT_URI=$GIT_URI GIT_REF=$GIT_REF MAVEN_MIRROR_URL=$MAVEN_MIRROR_URL -n $PRJ_COOLSTORE_TEST | oc create -f - -n $PRJ_COOLSTORE_TEST
+
+  sleep 10
+
+  # build images
+  for buildconfig in web-ui
+  do
+    oc start-build $buildconfig -n $PRJ_COOLSTORE_TEST
+    wait_while_empty "$buildconfig build" 180 "oc get builds -n $PRJ_COOLSTORE_TEST | grep $buildconfig | grep Running"
+    sleep 10
+  done
+}
+
+function build_rating_image() {
+  local _TEMPLATE_BUILDS="$LOCAL_TEMPLATE_DIR/coolstore-rating-builds-template.yaml"
+  echo "Using build template $_TEMPLATE_BUILDS"
+  oc process -f $_TEMPLATE_BUILDS GIT_URI=$GIT_URI GIT_REF=$GIT_REF MAVEN_MIRROR_URL=$MAVEN_MIRROR_URL -n $PRJ_COOLSTORE_TEST | oc create -f - -n $PRJ_COOLSTORE_TEST
+
+  sleep 10
+
+  # build images
+  for buildconfig in rating
+  do
+    oc start-build $buildconfig -n $PRJ_COOLSTORE_TEST
+    wait_while_empty "$buildconfig build" 180 "oc get builds -n $PRJ_COOLSTORE_TEST | grep $buildconfig | grep Running"
+    sleep 10
+  done
+}
+
+function build_review_image() {
+  local _TEMPLATE_BUILDS="$LOCAL_TEMPLATE_DIR/coolstore-review-builds-template.yaml"
+  echo "Using build template $_TEMPLATE_BUILDS"
+  oc process -f $_TEMPLATE_BUILDS GIT_URI=$GIT_URI GIT_REF=$GIT_REF MAVEN_MIRROR_URL=$MAVEN_MIRROR_URL -n $PRJ_COOLSTORE_TEST | oc create -f - -n $PRJ_COOLSTORE_TEST
+
+  sleep 10
+
+  # build images
+  for buildconfig in review
+  do
+    oc start-build $buildconfig -n $PRJ_COOLSTORE_TEST
+    wait_while_empty "$buildconfig build" 180 "oc get builds -n $PRJ_COOLSTORE_TEST | grep $buildconfig | grep Running"
+    sleep 10
+  done
+}
+
 function build_images() {
   local _TEMPLATE_BUILDS="$LOCAL_TEMPLATE_DIR/coolstore-builds-template.yaml"
   echo "Using build template $_TEMPLATE_BUILDS"
@@ -624,7 +672,7 @@ function build_images() {
   sleep 10
 
   # build images
-  for buildconfig in web-ui inventory cart catalog coolstore-gw pricing
+  for buildconfig in web-ui inventory cart catalog coolstore-gw pricing rating review
   do
     oc start-build $buildconfig -n $PRJ_COOLSTORE_TEST
     wait_while_empty "$buildconfig build" 180 "oc get builds -n $PRJ_COOLSTORE_TEST | grep $buildconfig | grep Running"

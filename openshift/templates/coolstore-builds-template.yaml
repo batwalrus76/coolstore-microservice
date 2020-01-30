@@ -240,7 +240,7 @@ objects:
       requests:
         cpu: "200m"
         memory: "1Gi"
-  # Pricing Rules Service
+# Pricing Rules Service
 - apiVersion: v1
   kind: ImageStream
   metadata:
@@ -286,7 +286,7 @@ objects:
       requests:
         cpu: "200m"
         memory: "1Gi"
-  # Rating service
+# Rating service
 - apiVersion: v1
   kind: ImageStream
   metadata:
@@ -323,7 +323,7 @@ objects:
           name: redhat-openjdk18-openshift:1.1
           namespace: openshift
       type: Source
-  # Reviews service
+# Reviews service
 - apiVersion: v1
   kind: ImageStream
   metadata:
