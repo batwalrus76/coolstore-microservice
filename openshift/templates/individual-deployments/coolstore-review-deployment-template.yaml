@@ -1,0 +1,333 @@
+apiVersion: v1
+kind: Template
+labels:
+  demo: coolstore-microservice
+metadata:
+  annotations:
+    description: CoolStore demo microservices deployments persistent template
+    iconClass: icon-java
+    tags: microservice,jboss,spring
+  name: coolstore-inventory-deployment
+objects:
+- apiVersion: v1
+  groupNames: null
+  kind: RoleBinding
+  metadata:
+    name: default_edit
+  roleRef:
+    name: view
+  subjects:
+    - kind: ServiceAccount
+      name: default
+# Review Service
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: review
+    labels:
+      app: review
+  spec:
+    tags:
+      - name: latest
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    name: review
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: review:latest
+    source:
+      contextDir: review-service
+      git:
+        ref: ${GIT_REF}
+        uri: ${GIT_URI}
+      type: Git
+    strategy:
+      sourceStrategy:
+        env:
+          - name: MAVEN_MIRROR_URL
+            value: ${MAVEN_MIRROR_URL}
+        from:
+          kind: ImageStreamTag
+          name: redhat-openjdk18-openshift:1.1
+          namespace: ${IMAGE_STREAM_NAMESPACE}
+      type: Source
+    triggers:
+      - type: ConfigChange
+      - imageChange: {}
+        type: ImageChange
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: review
+    labels:
+      app: review
+  spec:
+    replicas: 0
+    selector:
+      deploymentconfig: review
+    strategy:
+      resources: {}
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          app: review
+          deploymentconfig: review
+        name: review
+      spec:
+        containers:
+          - env:
+              - name: KUBERNETES_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
+              - name: JAVA_OPTIONS
+                value: "-Dswarm.project.stage=production -Dswarm.project.stage.file=file:///app/config/review-config.yml"
+            volumeMounts:
+              - name: config
+                mountPath: /app/config
+            image: review
+            imagePullPolicy: Always
+            name: review
+            ports:
+              - containerPort: 8778
+                name: jolokia
+                protocol: TCP
+              - containerPort: 8080
+                name: http
+                protocol: TCP
+            livenessProbe:
+              failureThreshold: 2
+              httpGet:
+                path: "/health"
+                port: 8080
+                scheme: HTTP
+              initialDelaySeconds: 60
+              periodSeconds: 10
+              successThreashold: 1
+              timeoutSeconds: 1
+            readinessProbe:
+              failureThreshold: 3
+              httpGet:
+                path: "/health"
+                port: 8080
+                scheme: HTTP
+              initialDelaySeconds: 10
+              periodSeconds: 10
+              successThreashold: 1
+              timeoutSeconds: 1
+            resources:
+              limits:
+                memory: 1Gi
+              requests:
+                memory: 200Mi
+        volumes:
+          - configMap:
+              name: review-config
+              items:
+                - key: "review-config.yml"
+                  path: "review-config.yml"
+            name: config
+        terminationMessagePath: /dev/termination-log
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 75
+    triggers:
+      - imageChangeParams:
+          automatic: true
+          containerNames:
+            - review
+          from:
+            kind: ImageStreamTag
+            name: review:latest
+        type: ImageChange
+      - type: ConfigChange
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      service.alpha.openshift.io/dependencies: '[{"name":"review-postgresql","namespace":"","kind":"Service"}]'
+    labels:
+      app: review
+    name: review
+  spec:
+    ports:
+      - port: 8080
+        protocol: TCP
+        targetPort: 8080
+    selector:
+      deploymentconfig: review
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: review-postgresql
+    labels:
+      comp-type: database
+      app: review
+  spec:
+    replicas: 0
+    selector:
+      deploymentconfig: review-postgresql
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          app: review
+          comp-type: database
+          deploymentconfig: review-postgresql
+        name: review-postgresql
+      spec:
+        containers:
+          - env:
+              - name: POSTGRESQL_USER
+                value: ${REVIEW_DB_USERNAME}
+              - name: POSTGRESQL_PASSWORD
+                value: ${REVIEW_DB_PASSWORD}
+              - name: POSTGRESQL_DATABASE
+                value: review
+            image: postgresql
+            imagePullPolicy: Always
+            name: review-postgresql
+            volumeMounts:
+              - mountPath: /var/lib/pgsql/data
+                name: review-postgresql-data
+            ports:
+              - containerPort: 5432
+                protocol: TCP
+            livenessProbe:
+              initialDelaySeconds: 30
+              tcpSocket:
+                port: 5432
+              timeoutSeconds: 1
+            readinessProbe:
+              exec:
+                command:
+                  - /bin/sh
+                  - -i
+                  - -c
+                  - psql -h 127.0.0.1 -U $POSTGRESQL_USER -q -d $POSTGRESQL_DATABASE -c 'SELECT 1'
+              initialDelaySeconds: 5
+              timeoutSeconds: 1
+        terminationGracePeriodSeconds: 60
+        volumes:
+          - name: review-postgresql-data
+            emptyDir: {}
+    triggers:
+      - imageChangeParams:
+          automatic: true
+          containerNames:
+            - review-postgresql
+          from:
+            kind: ImageStreamTag
+            name: postgresql:latest
+            namespace: ${IMAGE_STREAM_NAMESPACE}
+        type: ImageChange
+      - type: ConfigChange
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: review
+    name: review-postgresql
+  spec:
+    ports:
+      - port: 5432
+        targetPort: 5432
+    selector:
+      deploymentconfig: review-postgresql
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: review-config
+    labels:
+      app: review
+  data:
+    review-config.yml: |-
+      project:
+        stage: production
+      swarm:
+        datasources:
+          data-sources:
+            ReviewDS:
+              driver-name: postgresql
+              connection-url: jdbc:postgresql://review-postgresql:5432/review
+              user-name: ${REVIEW_DB_USERNAME}
+              password: ${REVIEW_DB_PASSWORD}
+
+parameters:
+- description: CoolStore application image version to be deployed (imagestreams should exist)
+  displayName: CoolStore image version
+  name: APP_VERSION
+  required: true
+  value: latest
+- description: Hostname suffix used for routes e.g. cart-<HOSTNAME_SUFFIX> inventory-<HOSTNAME_SUFFIX>
+  displayName: Hostname suffix used for routes
+  name: HOSTNAME_SUFFIX
+  required: true
+- description: Inventory Service database user name
+  from: user[a-zA-Z0-9]{3}
+  generate: expression
+  name: INVENTORY_DB_USERNAME
+  required: true
+- description: Inventory Service database user password
+  from: '[a-zA-Z0-9]{8}'
+  generate: expression
+  name: INVENTORY_DB_PASSWORD
+  required: true
+- description: Catalog Service database user name
+  from: user[a-zA-Z0-9]{3}
+  generate: expression
+  name: CATALOG_DB_USERNAME
+  required: true
+- description: Catalog Service database user password
+  from: '[a-zA-Z0-9]{8}'
+  generate: expression
+  name: CATALOG_DB_PASSWORD
+  required: true
+- description: Decision Server Username
+  name: KIE_SERVER_USER
+  required: true
+  value: brmsAdmin
+- description: Decision Server Password
+  from: '[a-zA-Z]{6}[0-9]{1}!'
+  generate: expression
+  name: KIE_SERVER_PASSWORD
+  required: true
+- description: Decision Server Coolstore Rules Container Spec
+  name: KIE_CONTAINER_DEPLOYMENT
+  required: true
+  value: CoolStoreRulesContainer=com.redhat:coolstore:2.0.0
+- description: Rating Service database user name
+  displayName: Rating Database username
+  from: user[a-zA-Z0-9]{3}
+  generate: expression
+  name: RATING_DB_USERNAME
+  required: true
+- description: Rating Service database user password
+  displayName: Rating Database password
+  from: '[a-zA-Z0-9]{8}'
+  generate: expression
+  name: RATING_DB_PASSWORD
+  required: true
+- description: Review Service database user name
+  displayName: Review Database username
+  from: user[a-zA-Z0-9]{3}
+  generate: expression
+  name: REVIEW_DB_USERNAME
+  required: true
+- description: Review Service database user password
+  displayName: Review Database password
+  from: '[a-zA-Z0-9]{8}'
+  generate: expression
+  name: REVIEW_DB_PASSWORD
+  required: true
+- description: Namespace in which the ImageStreams for Red Hat Middleware images are installed. These ImageStreams are normally installed in the openshift namespace. You should only need to modify this if you've installed the ImageStreams in a different namespace/project.
+  displayName: ImageStream Namespace
+  value: openshift
+  name: IMAGE_STREAM_NAMESPACE
+  required: true

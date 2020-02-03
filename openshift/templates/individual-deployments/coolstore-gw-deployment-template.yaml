@@ -1,0 +1,145 @@
+apiVersion: v1
+kind: Template
+labels:
+  demo: coolstore-microservice
+metadata:
+  annotations:
+    description: CoolStore demo microservices deployments persistent template
+    iconClass: icon-java
+    tags: microservice,jboss,spring
+  name: coolstore-inventory-deployment
+objects:
+# Coolstore Gateway
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: coolstore-gw
+    labels:
+      application: coolstore-gw
+  spec:
+    replicas: 1
+    selector:
+      deploymentconfig: coolstore-gw
+    strategy:
+      resources: {}
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          application: coolstore-gw
+          deploymentconfig: coolstore-gw
+        name: coolstore-gw
+      spec:
+        containers:
+          - env:
+              - name: KUBERNETES_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
+              - name: CART_ENDPOINT
+                value: cart-${HOSTNAME_SUFFIX}
+              - name: INVENTORY_ENDPOINT
+                value: inventory-${HOSTNAME_SUFFIX}
+              - name: CATALOG_ENDPOINT
+                value: catalog-${HOSTNAME_SUFFIX}
+            image: library/coolstore-gw:${APP_VERSION}
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: 8081
+              initialDelaySeconds: 180
+            name: coolstore-gw
+            ports:
+              - containerPort: 8778
+                name: jolokia
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: 8081
+              initialDelaySeconds: 10
+            resources:
+              limits:
+                cpu: 700m
+                memory: 2Gi
+              requests:
+                cpu: 100m
+                memory: 512Mi
+    triggers:
+      - imageChangeParams:
+          automatic: true
+          containerNames:
+            - coolstore-gw
+          from:
+            kind: ImageStreamTag
+            name: coolstore-gw:${APP_VERSION}
+        type: ImageChange
+      - type: ConfigChange
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: coolstore-gw
+      application: coolstore-gw
+      hystrix.enabled: "true"
+    name: coolstore-gw
+  spec:
+    ports:
+      - port: 8080
+        protocol: TCP
+        targetPort: 8080
+    selector:
+      deploymentconfig: coolstore-gw
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: coolstore-gw
+    labels:
+      application: coolstore-gw
+  spec:
+    host: gw-${HOSTNAME_SUFFIX}
+    to:
+      kind: Service
+      name: coolstore-gw
+parameters:
+- description: CoolStore application image version to be deployed (imagestreams should exist)
+  displayName: CoolStore image version
+  name: APP_VERSION
+  required: true
+  value: latest
+- description: Hostname suffix used for routes e.g. cart-<HOSTNAME_SUFFIX> inventory-<HOSTNAME_SUFFIX>
+  displayName: Hostname suffix used for routes
+  name: HOSTNAME_SUFFIX
+  required: true
+- description: Inventory Service database user name
+  from: user[a-zA-Z0-9]{3}
+  generate: expression
+  name: INVENTORY_DB_USERNAME
+  required: true
+- description: Inventory Service database user password
+  from: '[a-zA-Z0-9]{8}'
+  generate: expression
+  name: INVENTORY_DB_PASSWORD
+  required: true
+- description: Catalog Service database user name
+  from: user[a-zA-Z0-9]{3}
+  generate: expression
+  name: CATALOG_DB_USERNAME
+  required: true
+- description: Catalog Service database user password
+  from: '[a-zA-Z0-9]{8}'
+  generate: expression
+  name: CATALOG_DB_PASSWORD
+  required: true
+- description: Decision Server Username
+  name: KIE_SERVER_USER
+  required: true
+  value: brmsAdmin
+- description: Decision Server Password
+  from: '[a-zA-Z]{6}[0-9]{1}!'
+  generate: expression
+  name: KIE_SERVER_PASSWORD
+  required: true
+- description: Decision Server Coolstore Rules Container Spec
+  name: KIE_CONTAINER_DEPLOYMENT
+  required: true
+  value: CoolStoreRulesContainer=com.redhat:coolstore:2.0.0

@@ -33,8 +33,8 @@ objects:
     source:
       contextDir: review-service
       git:
-        ref: ${GIT_REF}
-        uri: ${GIT_URI}
+        ref: master
+        uri: https://github.com/jbossdemocentral/coolstore-microservice
       type: Git
     strategy:
       sourceStrategy:
@@ -50,12 +50,12 @@ parameters:
   - description: Git source URI for application
     displayName: Git source repository
     name: GIT_URI
-    required: true
+    required: false
     value: https://github.com/jbossdemocentral/coolstore-microservice
   - description: Git branch/tag reference
     displayName: Git branch/tag reference
     name: GIT_REF
-    required: true
+    required: false
     value: master
   - description: Maven mirror url. If nexus is deployed locally, use nexus url (e.g. http://nexus.ci:8081/content/groups/public/)
     displayName: Maven mirror url
