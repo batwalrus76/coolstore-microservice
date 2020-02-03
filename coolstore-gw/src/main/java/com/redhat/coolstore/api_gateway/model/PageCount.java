@@ -1,65 +1,25 @@
 package com.redhat.coolstore.api_gateway.model;
 
-public class Product  {
+public class PageCount  {
 
-	public String itemId;
-	public String name;
-	public String desc;
-	public double price;
-	public Inventory availability;
+	public int pageCount;
 
-	public Product() {
+	public PageCount() {
 
 	}
-	public Product(String itemId, String name, String desc, double price, Inventory availability) {
-		this.itemId = itemId;
-		this.name = name;
-		this.desc = desc;
-		this.price = price;
-		this.availability = availability;
+	public Product(int pageCount) {
+		this.pageCount = pageCount;
 	}
 
-	public Inventory getAvailability() {
-		return availability;
+	public int getPageCount() {
+		return pageCount;
 	}
 
-	public void setAvailability(Inventory availability) {
-		this.availability = availability;
-	}
-
-	public String getItemId() {
-		return itemId;
-	}
-
-	public void setItemId(String itemId) {
-		this.itemId = itemId;
-	}
-
-	public String getName() {
-		return name;
-	}
-
-	public void setName(String name) {
-		this.name = name;
-	}
-
-	public String getDesc() {
-		return desc;
-	}
-
-	public void setDesc(String desc) {
-		this.desc = desc;
-	}
-
-	public double getPrice() {
-		return price;
-	}
-
-	public void setPrice(double price) {
-		this.price = price;
+	public void setPageCount(int PageCount) {
+		this.PageCount = PageCount;
 	}
 
 	public String toString() {
-		return ("Product toString: name:" + name + " id:" + itemId + " price:" + price + " desc:" + desc);
+		return ("PageCount pageCount: " + this.pageCount);
 	}
 }
